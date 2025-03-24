@@ -33,6 +33,12 @@
           "backgroundColor": "#ffffff"
         }
       ],
+      [
+        "expo-contacts",
+        {
+          "contactsPermission": "$(PRODUCT_NAME) souhaite accéder à tes contacts. Rassure-toi, rien ne quittera ton téléphone."
+        }
+      ],
       "expo-font"
     ],
     "experiments": {

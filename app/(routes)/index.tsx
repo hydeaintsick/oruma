@@ -2,11 +2,15 @@ import { StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Gecko, Button } from "@/components";
 import { Theme } from "@/constants";
+import { useLazyContacts } from "@/hooks/useContacts";
 
 export default function HomeScreen() {
   const router = useRouter();
+  const { contacts, permissionStatus, loading, fetchContacts } =
+    useLazyContacts();
 
-  function onSyncContacts() {
+  async function onSyncContacts() {
+    await fetchContacts();
     router.navigate("/contacts");
   }
 
