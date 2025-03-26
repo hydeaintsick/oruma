@@ -16,6 +16,16 @@ export default function ContactsScreen() {
   const { contacts } = useContacts();
   const router = useRouter();
   const [currentTab, setCurrentTab] = useState<TContactType>("ALL");
+  const [s, setSearch] = useState("");
+
+  const search = s.toLowerCase();
+
+  const displayContacts = contacts.filter(
+    (c) =>
+      c.category === currentTab &&
+      (c.firstName.toLowerCase().includes(search) ||
+        c.lastName.toLowerCase().includes(search))
+  );
 
   function onTabPress(tab: TContactType) {
     setCurrentTab(tab);
@@ -28,7 +38,7 @@ export default function ContactsScreen() {
   return (
     <View style={styles.page}>
       <SafeAreaView>
-        <Searchbar label="Rechercher dans les contacts" />
+        <Searchbar label="Rechercher dans les contacts" onSearch={setSearch} />
         {/* Buttons zone */}
         <View style={styles.actions}>
           <Button
@@ -63,17 +73,17 @@ export default function ContactsScreen() {
             markedup={currentTab === "FAMILY"}
             onPress={() => onTabPress("FAMILY")}
           />
-          <Button
+          {/* <Button
             label="Nouveau"
             style={styles.newBtn}
             fontSize={14}
             bgColor={Theme.colors.green}
-          />
+          /> */}
         </View>
         {/* Component corpus */}
         <View style={styles.corpus}>
           <ScrollView>
-            {contacts.map((contact: any) => (
+            {displayContacts.map((contact: any) => (
               <ListContact
                 key={contact.id}
                 contact={contact}
@@ -98,8 +108,8 @@ const styles = StyleSheet.create({
   },
   // corpus component
   corpus: {
-    width: "100%",
     flex: 1,
+    width: Dimensions.get("window").width - 40,
     maxHeight: "80%",
     borderRadius: 25,
     backgroundColor: Theme.colors.yellow,
@@ -111,15 +121,15 @@ const styles = StyleSheet.create({
   actions: {
     width: "100%",
     flexDirection: "row",
-    justifyContent: "flex-start",
+    justifyContent: "space-between",
     marginBottom: 20,
     marginTop: 20,
   },
   action: {
-    width: 45,
-    height: 45,
-    borderRadius: 45 / 2,
-    borderWidth: 6,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    borderWidth: 8,
     alignItems: "center",
     padding: 0,
     position: "relative",

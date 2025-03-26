@@ -15,18 +15,19 @@ export default function HomeScreen() {
     // console.log("contacts:", contacts);
     async function saveInDb() {
       await Contact.batchSave(
-        contacts.map((c: any) => ({
-          firstName: c.firstName,
-          lastName: c.lastName,
-          nativeID: c.id,
-          category: "ALL",
-        }))
+        contacts
+          .map((c: any) => ({
+            firstName: c.firstName,
+            lastName: c.lastName,
+            nativeID: c.id,
+            category: "ALL",
+          }))
+          .filter((c: any) => c.firstName && c.lastName && c.nativeID)
       );
     }
 
     async function checkDb() {
       const inDb = await Contact.getAll();
-      console.log("CONTACT IN DB:", inDb);
     }
 
     if (contacts.length > 0) saveInDb();

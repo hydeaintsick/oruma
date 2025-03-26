@@ -11,8 +11,8 @@ export function useContacts() {
     const fetchContacts = async () => {
       try {
         const data = await Contact.getAll();
-        console.log("DATAAAAAAAAAA");
-        console.log(data);
+        // order data by lastName
+        data.sort((a, b) => a.lastName.localeCompare(b.lastName));
         setContacts(data);
       } catch (err) {
         setError("Erreur lors de la récupération des contacts.");
