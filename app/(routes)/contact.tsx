@@ -1,11 +1,8 @@
 import { useEffect, useState } from "react";
 import { StyleSheet, View, Text, Dimensions, SafeAreaView } from "react-native";
 import { Theme } from "@/constants";
-import { useContacts } from "@/hooks";
 
 export default function ContactScreen() {
-  const { contacts } = useContacts();
-
   return (
     <View style={styles.page}>
       <Text>Page du contact</Text>

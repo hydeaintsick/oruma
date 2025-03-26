@@ -1,13 +1,38 @@
+import { useEffect } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Gecko, Button } from "@/components";
 import { Theme } from "@/constants";
 import { useLazyContacts } from "@/hooks/useContacts";
+import { Contact } from "@/db";
 
 export default function HomeScreen() {
   const router = useRouter();
   const { contacts, permissionStatus, loading, fetchContacts } =
     useLazyContacts();
+
+  useEffect(() => {
+    // console.log("contacts:", contacts);
+    async function saveInDb() {
+      await Contact.batchSave(
+        contacts.map((c: any) => ({
+          firstName: c.firstName,
+          lastName: c.lastName,
+          nativeID: c.id,
+          category: "ALL",
+        }))
+      );
+    }
+
+    async function checkDb() {
+      const inDb = await Contact.getAll();
+      console.log("CONTACT IN DB:", inDb);
+    }
+
+    if (contacts.length > 0) saveInDb();
+
+    checkDb();
+  }, [contacts]);
 
   async function onSyncContacts() {
     await fetchContacts();

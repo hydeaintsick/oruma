@@ -1,7 +1,33 @@
 import { useState, useEffect } from "react";
 import * as Contacts from "expo-contacts";
+import { Contact, ContactType } from "@/db";
 
-export const useContacts = () => {
+export function useContacts() {
+  const [contacts, setContacts] = useState<ContactType[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchContacts = async () => {
+      try {
+        const data = await Contact.getAll();
+        console.log("DATAAAAAAAAAA");
+        console.log(data);
+        setContacts(data);
+      } catch (err) {
+        setError("Erreur lors de la récupération des contacts.");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchContacts();
+  }, []);
+
+  return { contacts, loading, error };
+}
+
+export const usePhoneNativeContacts = () => {
   const [contacts, setContacts] = useState<any>([]);
   const [permissionStatus, setPermissionStatus] =
     useState<Contacts.PermissionStatus>();
@@ -48,4 +74,4 @@ export const useLazyContacts = () => {
   return { contacts, permissionStatus, loading, fetchContacts };
 };
 
-export default useContacts;
+export default usePhoneNativeContacts;

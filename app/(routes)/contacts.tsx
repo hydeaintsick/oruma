@@ -7,21 +7,15 @@ import {
   SafeAreaView,
 } from "react-native";
 import { Theme } from "@/constants";
-import { useContacts } from "@/hooks";
 import { ListContact, Button, Searchbar } from "@/components";
 import { TContactType } from "@/types";
 import { useRouter } from "expo-router";
+import { useContacts } from "@/hooks";
 
 export default function ContactsScreen() {
   const { contacts } = useContacts();
   const router = useRouter();
   const [currentTab, setCurrentTab] = useState<TContactType>("ALL");
-
-  console.log("contacts:", contacts);
-
-  useEffect(() => {
-    console.log(contacts);
-  }, [contacts]);
 
   function onTabPress(tab: TContactType) {
     setCurrentTab(tab);
