@@ -26,6 +26,13 @@ export default function TabLayout() {
           headerShown: false,
         }}
       />
+      <Stack.Screen
+        name="contact"
+        options={{
+          title: "Contact",
+          headerShown: false,
+        }}
+      />
     </Stack>
   );
 }

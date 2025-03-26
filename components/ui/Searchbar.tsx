@@ -1,26 +1,30 @@
 import { Theme } from "@/constants";
 import { useRef } from "react";
-import { Animated, Pressable, Text, StyleSheet } from "react-native";
+import {
+  Animated,
+  Pressable,
+  Text,
+  StyleSheet,
+  Dimensions,
+} from "react-native";
 
-export interface IButtonProps {
+export interface ISearchBarProps {
   label: string;
   bgColor?: string;
   labelColor?: string;
   fontSize?: number;
-  markedup?: boolean;
   style?: any;
   onPress?: () => void;
 }
 
-export const Button = ({
+export const Searchbar = ({
   label,
   bgColor,
   labelColor,
   fontSize,
-  markedup,
   style,
   onPress,
-}: IButtonProps) => {
+}: ISearchBarProps) => {
   const scaleAnim = useRef(new Animated.Value(1)).current;
 
   const handlePressIn = () => {
@@ -46,19 +50,8 @@ export const Button = ({
         style={[
           styles.btn,
           {
-            backgroundColor: bgColor || "blue",
+            backgroundColor: bgColor || Theme.colors.yellow,
             transform: [{ scale: scaleAnim }],
-          },
-          markedup && {
-            shadowColor: "#000",
-            shadowOffset: {
-              width: 0,
-              height: 8,
-            },
-            shadowOpacity: 0.44,
-            shadowRadius: 10.32,
-
-            elevation: 16,
           },
           style,
         ]}
@@ -81,9 +74,9 @@ export const Button = ({
 
 const styles = StyleSheet.create({
   btn: {
-    padding: 10,
-    width: 280,
+    width: Dimensions.get("window").width - 40,
     height: 60,
+    padding: 10,
     justifyContent: "center",
     alignItems: "center",
     borderRadius: 30,
