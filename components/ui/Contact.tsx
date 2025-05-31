@@ -1,22 +1,24 @@
 import { Theme } from "@/constants";
 import { useRef } from "react";
 import { Animated, Pressable, View, Text, StyleSheet } from "react-native";
+import { ContactType } from "@/db"; // Import base ContactType
 
-export type TContact = {
-  id: string;
-  firstName: string;
-  lastName: string;
+// Updated TContact to align with ContactType from DB and include noteCount
+export type TContact = ContactType & { // Include all fields from ContactType
+  noteCount?: number; // noteCount is optional as it might not always be present
 };
 
 export interface IListContactProps {
   contact: TContact;
+  // The onPress from contacts.tsx passes the full ContactType & { noteCount } object
   onPress?: (contact: TContact) => void;
 }
 
 export const ListContact = ({ contact, onPress }: IListContactProps) => {
-  const { firstName, lastName } = contact;
-  const initials = `${firstName[0]}${
-    lastName[0]?.length > 0 ? lastName[0] : firstName[1]
+  // Ensure lastName exists before trying to access its properties.
+  // The DB schema for contacts has lastName as NOT NULL, but good to be safe.
+  const initials = `${contact.firstName[0]}${
+    contact.lastName && contact.lastName.length > 0 ? contact.lastName[0] : (contact.firstName.length > 1 ? contact.firstName[1] : '')
   }`.toUpperCase();
 
   const scaleAnim = useRef(new Animated.Value(1)).current;
@@ -54,7 +56,9 @@ export const ListContact = ({ contact, onPress }: IListContactProps) => {
             <Text style={styles.contactName}>
               {contact.firstName} {contact.lastName?.toUpperCase()}
             </Text>
-            <Text style={styles.notesNb}>10 notes</Text>
+            <Text style={styles.notesNb}>
+              {contact.noteCount !== undefined ? `${contact.noteCount} note${contact.noteCount === 1 ? '' : 's'}` : '... notes'}
+            </Text>
           </View>
         </View>
         <View style={styles.editBtn}>

@@ -1,20 +1,24 @@
 import { useState, useEffect } from "react";
 import * as Contacts from "expo-contacts";
-import { Contact, ContactType } from "@/db";
+import { Contact, ContactType } from "@/db"; // ContactType might need to be adjusted or a new type created if we frequently use the extended version.
+
+// Define the extended contact type for clarity within this hook
+export type ContactWithNoteCount = ContactType & { noteCount: number };
 
 export function useContacts() {
-  const [contacts, setContacts] = useState<ContactType[]>([]);
+  const [contacts, setContacts] = useState<ContactWithNoteCount[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchContacts = async () => {
       try {
-        const data = await Contact.getAll();
-        // order data by lastName
-        data.sort((a, b) => a.lastName.localeCompare(b.lastName));
+        // Call the new method to get contacts with note counts
+        const data = await Contact.getAllWithNoteCounts();
+        // The data is already sorted by lastName, firstName from the DB query
         setContacts(data);
       } catch (err) {
+        console.error("Error in useContacts fetching data:", err); // Log the actual error
         setError("Erreur lors de la récupération des contacts.");
       } finally {
         setLoading(false);
