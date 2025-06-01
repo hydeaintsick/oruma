@@ -47,7 +47,23 @@ export class ContactModel extends Model {
 
   async getAll(): Promise<ContactType[]> {
     const db = await this.getDb();
-    return await db.getAllAsync<ContactType>("SELECT * FROM contacts");
+    // Basic getAll, consider ordering if not done by default or if specific order is needed often
+    return await db.getAllAsync<ContactType>("SELECT * FROM contacts ORDER BY lastName, firstName");
+  }
+
+  async getAllWithNoteCounts(): Promise<(ContactType & { noteCount: number })[]> {
+    const db = await this.getDb();
+    const query = `
+      SELECT c.*, COALESCE(nc.count, 0) as noteCount
+      FROM contacts c
+      LEFT JOIN (
+          SELECT userId, COUNT(*) as count
+          FROM notes
+          GROUP BY userId
+      ) nc ON c.id = nc.userId
+      ORDER BY c.lastName, c.firstName;
+    `;
+    return await db.getAllAsync<(ContactType & { noteCount: number })>(query);
   }
 
   async getById(id: number): Promise<ContactType | null> {

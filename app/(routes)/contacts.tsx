@@ -8,31 +8,38 @@ import {
 } from "react-native";
 import { Theme } from "@/constants";
 import { ListContact, Button, Searchbar } from "@/components";
-import { TContactType } from "@/types";
+import { TContactType as ContactCategoryType } from "@/types"; // Renamed for clarity
 import { useRouter } from "expo-router";
 import { useContacts } from "@/hooks";
+import { ContactType } from "@/db"; // Import the actual ContactType from db
 
 export default function ContactsScreen() {
-  const { contacts } = useContacts();
+  const { contacts } = useContacts(); // This is ContactType[] from db/Contact.ts
   const router = useRouter();
-  const [currentTab, setCurrentTab] = useState<TContactType>("ALL");
+  const [currentTab, setCurrentTab] = useState<ContactCategoryType>("ALL"); // This TContactType is for category
   const [s, setSearch] = useState("");
 
   const search = s.toLowerCase();
 
   const displayContacts = contacts.filter(
-    (c) =>
+    (c: ContactType) => // Use ContactType here
       c.category === currentTab &&
       (c.firstName.toLowerCase().includes(search) ||
-        c.lastName.toLowerCase().includes(search))
+        (c.lastName && c.lastName.toLowerCase().includes(search))) // Ensure lastName exists
   );
 
-  function onTabPress(tab: TContactType) {
+  function onTabPress(tab: ContactCategoryType) {
     setCurrentTab(tab);
   }
 
-  function onContact() {
-    router.navigate("/contact");
+  // Updated onContact function
+  function onContact(contact: ContactType) {
+    if (contact && typeof contact.id === 'number') {
+      router.navigate({ pathname: "/contact", params: { contactId: contact.id.toString() } });
+    } else {
+      console.error("Invalid contact data for navigation:", contact);
+      // Optionally, show an error to the user
+    }
   }
 
   return (
@@ -83,11 +90,11 @@ export default function ContactsScreen() {
         {/* Component corpus */}
         <View style={styles.corpus}>
           <ScrollView>
-            {displayContacts.map((contact: any) => (
+            {displayContacts.map((contact: ContactType) => ( // Use ContactType here
               <ListContact
-                key={contact.id}
-                contact={contact}
-                onPress={onContact}
+                key={contact.id} // Assuming contact.id is number (PK from DB)
+                contact={contact} // Pass the whole ContactType object
+                onPress={() => onContact(contact)} // Pass the specific contact to onContact
               />
             ))}
           </ScrollView>
