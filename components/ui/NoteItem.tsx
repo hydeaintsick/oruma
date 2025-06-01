@@ -32,7 +32,6 @@ export const NoteItem: React.FC<NoteItemProps> = ({ note, onEditPress, onDeleteP
           <Text style={styles.dateTextUpdated}>Updated: {formatDate(note.updatedAt)}</Text>
         )}
       </View>
-      {/*
       <View style={styles.actionsContainer}>
         {onEditPress &&
           <Pressable onPress={() => onEditPress(note)} style={[styles.button, styles.editButton]}>
@@ -45,7 +44,6 @@ export const NoteItem: React.FC<NoteItemProps> = ({ note, onEditPress, onDeleteP
           </Pressable>
         }
       </View>
-      */}
     </View>
   );
 };
