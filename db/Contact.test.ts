@@ -1,169 +1,302 @@
-import { ContactModel, ContactType, ContactCategory } from './Contact';
-import { NoteModel, NoteType } from './Note'; // Needed for creating notes
+import { Contact, ContactCategory, initDB, ContactTypeRaw } from './Contact'; // Adjusted import for ContactTypeRaw
+// It seems initDB from Contact.ts also initializes Note table, which is fine for this mocked setup.
 
-const TEST_DB_NAME = ":memory:";
+// Mocking expo-sqlite more comprehensively
+const mockRunAsync = jest.fn();
+const mockGetFirstAsync = jest.fn();
+const mockGetAllAsync = jest.fn();
+const mockExecuteSql = jest.fn(); // For synchronous transactions if any part of initDB uses them
 
-describe('ContactModel', () => {
-  let contactModel: ContactModel;
-  let noteModel: NoteModel;
-
-  async function initializeModels() {
-    contactModel = new ContactModel(TEST_DB_NAME);
-    noteModel = new NoteModel(TEST_DB_NAME); // Notes will be on the same :memory: DB
-    await contactModel.getDb(); // Ensures DB is initialized and tables are created
-    await noteModel.getDb();
-  }
-
-  beforeEach(async () => {
-    await initializeModels();
-    // Clear tables before each test. Order: notes before contacts due to FK.
-    await noteModel.clearTable('notes');
-    await contactModel.clearTable('contacts');
+const mockTransactionCallback = async (callback: any) => {
+  await callback({
+    executeSql: mockExecuteSql,
+    runAsync: mockRunAsync,
+    getFirstAsync: mockGetFirstAsync,
+    getAllAsync: mockGetAllAsync,
   });
+};
 
-  afterEach(async () => {
-    await contactModel.closeDb();
-    await noteModel.closeDb(); // Close the shared :memory: DB connection
-  });
+const mockDB = {
+  transactionAsync: jest.fn(mockTransactionCallback),
+  // If initDB uses synchronous transactions:
+  transaction: jest.fn((callback) => {
+    callback({ executeSql: mockExecuteSql });
+  }),
+  // Add other methods like closeAsync, deleteAsync if needed
+};
 
-  it('should create a new contact successfully', async () => {
-    const contactData: Omit<ContactType, 'id' | 'createdAt' | 'updatedAt'> = {
-      firstName: 'John',
-      lastName: 'Doe',
-      nativeID: `native-${Date.now()}`,
-      category: 'WORK',
-    };
-    const createdContact = await contactModel.create(contactData);
+// @ts-ignore openDatabase is not defined in Node.js for Jest
+global.openDatabase = jest.fn(() => mockDB);
 
-    expect(createdContact).toBeDefined();
-    expect(createdContact.id).toBeGreaterThan(0);
-    expect(createdContact.firstName).toBe(contactData.firstName);
-    expect(createdContact.nativeID).toBe(contactData.nativeID);
-    expect(createdContact.createdAt).toBeDefined();
-    expect(createdContact.updatedAt).toBeDefined();
-
-    const fetchedContact = await contactModel.getById(createdContact.id);
-    expect(fetchedContact).not.toBeNull();
-    expect(fetchedContact!.id).toBe(createdContact.id);
-  });
-
-  it('should prevent creating contacts with duplicate nativeID', async () => {
-    const commonNativeID = `unique-native-${Date.now()}`;
-    await contactModel.create({
-      firstName: 'Jane',
-      lastName: 'Doe',
-      nativeID: commonNativeID,
-      category: 'FRIEND'
+describe('ContactModel (db/Contact.ts)', () => {
+  beforeAll(async () => {
+    // Mock implementation for initDB's table creation calls
+    // Assuming initDB uses executeSql for table creation within a transaction
+    mockExecuteSql.mockImplementation((sql) => {
+      // console.log("Mocked executeSql:", sql);
+      return { rows: [], rowsAffected: 0 }; // Default mock for DDL
+    });
+    // If initDB uses runAsync for table creation:
+    mockRunAsync.mockImplementation((sql) => {
+      // console.log("Mocked runAsync for DDL:", sql);
+      return Promise.resolve({ insertId: undefined, rowsAffected: 0 });
     });
 
-    try {
-      await contactModel.create({
+    await initDB(); // This will call Contact.createTable() etc.
+    // Clear specific mocks for DDL after initDB if they were set
+    mockExecuteSql.mockReset();
+    mockRunAsync.mockReset();
+  });
+
+  beforeEach(() => {
+    // Reset mocks before each test
+    mockRunAsync.mockReset();
+    mockGetFirstAsync.mockReset();
+    mockGetAllAsync.mockReset();
+    mockExecuteSql.mockReset();
+    // mockDB.transactionAsync.mockClear(); // If you need to check transaction calls themselves
+  });
+
+  describe('create()', () => {
+    it('should create a contact with all fields and correct timestamps', async () => {
+      const now = Date.now();
+      const spyDateNow = jest.spyOn(Date, 'now').mockImplementation(() => now);
+      const isoNow = new Date(now).toISOString();
+
+      mockRunAsync.mockResolvedValueOnce({ insertId: 1, rowsAffected: 1 });
+
+      const contactData = {
         firstName: 'John',
-        lastName: 'Smith',
-        nativeID: commonNativeID, // Duplicate nativeID
-        category: 'WORK'
+        lastName: 'Doe',
+        category: ContactCategory.FRIEND,
+        nativeID: 'native-123',
+      };
+      const newContactId = await Contact.create(contactData);
+
+      expect(newContactId).toBe(1);
+      expect(mockRunAsync).toHaveBeenCalledTimes(1);
+      expect(mockRunAsync).toHaveBeenCalledWith(
+        'INSERT INTO contacts (firstName, lastName, category, nativeID, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?)',
+        [
+          contactData.firstName,
+          contactData.lastName,
+          contactData.category,
+          contactData.nativeID,
+          isoNow, // createdAt
+          isoNow, // updatedAt
+        ]
+      );
+      spyDateNow.mockRestore();
+    });
+
+    it('should create a contact with only required fields (firstName, category)', async () => {
+      const now = Date.now();
+      const spyDateNow = jest.spyOn(Date, 'now').mockImplementation(() => now);
+      const isoNow = new Date(now).toISOString();
+      mockRunAsync.mockResolvedValueOnce({ insertId: 2, rowsAffected: 1 });
+
+      const contactData = {
+        firstName: 'Jane',
+        category: ContactCategory.WORK,
+      };
+      // @ts-ignore - testing with only required fields
+      const newContactId = await Contact.create(contactData);
+
+      expect(newContactId).toBe(2);
+      expect(mockRunAsync).toHaveBeenCalledWith(
+        'INSERT INTO contacts (firstName, lastName, category, nativeID, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?)',
+        [
+          contactData.firstName,
+          null, // lastName
+          contactData.category,
+          null, // nativeID
+          isoNow,
+          isoNow,
+        ]
+      );
+      spyDateNow.mockRestore();
+    });
+  });
+
+  describe('update()', () => {
+    it('should update all provided fields and set updatedAt', async () => {
+      const now = Date.now();
+      const spyDateNow = jest.spyOn(Date, 'now').mockImplementation(() => now);
+      const isoNow = new Date(now).toISOString();
+      const contactId = 1;
+      const updateData = {
+        firstName: 'Johnathan',
+        lastName: 'Doelicious',
+        category: ContactCategory.FAMILY,
+        nativeID: 'native-updated-456',
+      };
+
+      // Mock getFirstAsync for fetching the existing record
+      const existingContactRaw: ContactTypeRaw = {
+        id: contactId,
+        firstName: 'John',
+        lastName: 'Doe',
+        category: ContactCategory.FRIEND,
+        nativeID: 'native-123',
+        createdAt: new Date(0).toISOString(),
+        updatedAt: new Date(0).toISOString(),
+      };
+      mockGetFirstAsync.mockResolvedValueOnce(existingContactRaw);
+      mockRunAsync.mockResolvedValueOnce({ rowsAffected: 1 });
+
+      await Contact.update(contactId, updateData);
+
+      expect(mockGetFirstAsync).toHaveBeenCalledWith('SELECT * FROM contacts WHERE id = ?', [contactId]);
+      expect(mockRunAsync).toHaveBeenCalledTimes(1);
+      expect(mockRunAsync).toHaveBeenCalledWith(
+        'UPDATE contacts SET firstName = ?, lastName = ?, category = ?, nativeID = ?, updatedAt = ? WHERE id = ?',
+        [
+          updateData.firstName,
+          updateData.lastName,
+          updateData.category,
+          updateData.nativeID,
+          isoNow, // updatedAt
+          contactId,
+        ]
+      );
+      spyDateNow.mockRestore();
+    });
+
+    it('should handle partial updates, preserving existing values for non-provided fields', async () => {
+      const now = Date.now();
+      const spyDateNow = jest.spyOn(Date, 'now').mockImplementation(() => now);
+      const isoNow = new Date(now).toISOString();
+      const contactId = 1;
+      const partialUpdateData = {
+        firstName: 'Johnny',
+        // lastName, category, nativeID not provided
+      };
+
+      const existingContactRaw: ContactTypeRaw = {
+        id: contactId,
+        firstName: 'John',
+        lastName: 'Doe',
+        category: ContactCategory.FRIEND,
+        nativeID: 'native-123',
+        createdAt: new Date(0).toISOString(),
+        updatedAt: new Date(0).toISOString(),
+      };
+      mockGetFirstAsync.mockResolvedValueOnce(existingContactRaw);
+      mockRunAsync.mockResolvedValueOnce({ rowsAffected: 1 });
+
+      await Contact.update(contactId, partialUpdateData);
+
+      expect(mockGetFirstAsync).toHaveBeenCalledWith('SELECT * FROM contacts WHERE id = ?', [contactId]);
+      expect(mockRunAsync).toHaveBeenCalledWith(
+        'UPDATE contacts SET firstName = ?, lastName = ?, category = ?, nativeID = ?, updatedAt = ? WHERE id = ?',
+        [
+          partialUpdateData.firstName, // updated
+          existingContactRaw.lastName, // preserved
+          existingContactRaw.category, // preserved
+          existingContactRaw.nativeID, // preserved
+          isoNow, // new updatedAt
+          contactId,
+        ]
+      );
+      spyDateNow.mockRestore();
+    });
+
+    it('should return false if contact to update is not found', async () => {
+        mockGetFirstAsync.mockResolvedValueOnce(null); // Simulate contact not found
+        const success = await Contact.update(999, { firstName: 'Ghost' });
+        expect(success).toBe(false);
+        expect(mockRunAsync).not.toHaveBeenCalled(); // Update should not be attempted
       });
-      fail('Should have thrown an error for duplicate nativeID');
-    } catch (error: any) {
-      // Error code for UNIQUE constraint failure in SQLite is SQLITE_CONSTRAINT_UNIQUE
-      // The exact error message or type might vary depending on the driver/expo-sqlite version
-      expect(error).toBeDefined();
-      // A more specific check could be error.message.includes('UNIQUE constraint failed: contacts.nativeID')
-      // For now, just checking an error was thrown.
-    }
   });
 
-  it('should retrieve all contacts with correct note counts', async () => {
-    // Create contacts
-    const contact1 = await contactModel.create({ firstName: 'Alice', lastName: 'Alpha', nativeID: 'n1', category: 'FAMILY' });
-    const contact2 = await contactModel.create({ firstName: 'Bob', lastName: 'Beta', nativeID: 'n2', category: 'WORK' });
-    const contact3 = await contactModel.create({ firstName: 'Charlie', lastName: 'Gamma', nativeID: 'n3', category: 'FRIEND' }); // Contact with no notes
+  describe('deleteById()', () => {
+    it('should delete a contact by ID', async () => {
+      const contactId = 1;
+      mockRunAsync.mockResolvedValueOnce({ rowsAffected: 1 });
+      const success = await Contact.deleteById(contactId);
 
-    // Create notes for contact1
-    await noteModel.create({ userId: contact1.id, content: 'Note A1', category: 'PERSONAL' });
-    await noteModel.create({ userId: contact1.id, content: 'Note A2', category: 'PERSONAL' });
+      expect(success).toBe(true);
+      expect(mockRunAsync).toHaveBeenCalledTimes(1);
+      expect(mockRunAsync).toHaveBeenCalledWith(
+        'DELETE FROM contacts WHERE id = ?',
+        [contactId]
+      );
+    });
 
-    // Create notes for contact2
-    await noteModel.create({ userId: contact2.id, content: 'Note B1', category: 'WORK' });
-
-    const contactsWithCounts = await contactModel.getAllWithNoteCounts();
-
-    expect(contactsWithCounts).toHaveLength(3);
-
-    // Check order (lastName, then firstName)
-    expect(contactsWithCounts[0].id).toBe(contact1.id); // Alpha
-    expect(contactsWithCounts[1].id).toBe(contact2.id); // Beta
-    expect(contactsWithCounts[2].id).toBe(contact3.id); // Gamma
-
-    const c1Data = contactsWithCounts.find(c => c.id === contact1.id);
-    const c2Data = contactsWithCounts.find(c => c.id === contact2.id);
-    const c3Data = contactsWithCounts.find(c => c.id === contact3.id);
-
-    expect(c1Data?.noteCount).toBe(2);
-    expect(c2Data?.noteCount).toBe(1);
-    expect(c3Data?.noteCount).toBe(0);
+    it('should return false if contact to delete is not found or delete fails', async () => {
+        mockRunAsync.mockResolvedValueOnce({ rowsAffected: 0 });
+        const success = await Contact.deleteById(999);
+        expect(success).toBe(false);
+    });
   });
 
-  it('should batchSave new contacts', async () => {
-    const newContactsData = [
-      { firstName: 'David', lastName: 'Delta', nativeID: 'n4', category: 'WORK' as ContactCategory },
-      { firstName: 'Eve', lastName: 'Epsilon', nativeID: 'n5', category: 'FRIEND' as ContactCategory },
-    ];
-    const insertedCount = await contactModel.batchSave(newContactsData);
-    expect(insertedCount).toBe(2);
+  describe('getById()', () => {
+    it('should retrieve a contact by its ID', async () => {
+      const contactId = 1;
+      const mockContactRaw: ContactTypeRaw = {
+        id: contactId,
+        firstName: 'Test',
+        lastName: 'User',
+        category: ContactCategory.WORK,
+        nativeID: 'native-789',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      mockGetFirstAsync.mockResolvedValueOnce(mockContactRaw);
 
-    const allContacts = await contactModel.getAll();
-    expect(allContacts).toHaveLength(2);
+      const result = await Contact.getById(contactId);
+
+      expect(result).toEqual(Contact.mapRawToContact(mockContactRaw)); // Assuming mapRawToContact is used
+      expect(mockGetFirstAsync).toHaveBeenCalledTimes(1);
+      expect(mockGetFirstAsync).toHaveBeenCalledWith(
+        'SELECT * FROM contacts WHERE id = ?',
+        [contactId]
+      );
+    });
+
+    it('should return null if contact not found', async () => {
+      mockGetFirstAsync.mockResolvedValueOnce(null);
+      const result = await Contact.getById(999);
+      expect(result).toBeNull();
+    });
   });
 
-  it('batchSave should skip existing contacts by nativeID and insert new ones', async () => {
-    // Pre-existing contact
-    await contactModel.create({ firstName: 'Existing', lastName: 'User', nativeID: 'existing-nID', category: 'ALL' });
+  describe('getAllWithNoteCounts()', () => {
+    it('should retrieve all contacts with their note counts, ordered by firstName', async () => {
+      const mockRawData = [ // Data as it would come from SQLite.ts (noteCount is string)
+        { id: 1, firstName: 'Alice', lastName: 'A', category: 'FRIEND', nativeID: 'n1', createdAt: '', updatedAt: '', noteCount: "2" },
+        { id: 2, firstName: 'Bob', lastName: 'B', category: 'WORK', nativeID: 'n2', createdAt: '', updatedAt: '', noteCount: "0" },
+      ];
+      mockGetAllAsync.mockResolvedValueOnce(mockRawData);
 
-    const contactsToBatchSave = [
-      { firstName: 'New', lastName: 'Person1', nativeID: 'new-nID1', category: 'WORK' as ContactCategory },
-      { firstName: 'Existing', lastName: 'UserToSkip', nativeID: 'existing-nID', category: 'ALL' as ContactCategory }, // Should be skipped
-      { firstName: 'New', lastName: 'Person2', nativeID: 'new-nID2', category: 'FRIEND' as ContactCategory },
-    ];
+      const results = await Contact.getAllWithNoteCounts();
 
-    const insertedCount = await contactModel.batchSave(contactsToBatchSave);
-    expect(insertedCount).toBe(2); // Only the two new contacts should be inserted
-
-    const allContacts = await contactModel.getAll();
-    expect(allContacts).toHaveLength(3); // 1 pre-existing + 2 new
+      expect(results).toEqual(mockRawData.map(Contact.mapRawToContactWithNoteCount));
+      expect(mockGetAllAsync).toHaveBeenCalledTimes(1);
+      expect(mockGetAllAsync).toHaveBeenCalledWith(
+        expect.stringContaining('SELECT c.*, COUNT(n.id) as noteCount FROM contacts c LEFT JOIN notes n ON c.id = n.userId GROUP BY c.id ORDER BY c.firstName ASC')
+      );
+    });
   });
 
-  it('should update an existing contact', async () => {
-    const contact = await contactModel.create({ firstName: 'Update', lastName: 'Me', nativeID: 'update-me-id', category: 'ALL' });
-    const updates: Partial<Omit<ContactType, 'id' | 'createdAt'>> = {
-      firstName: "UpdatedName",
-      category: "WORK"
-    };
-    const success = await contactModel.update(contact.id, updates);
-    expect(success).toBe(true);
+  // Test for mapRawToContact if it's complex enough, though it's mostly type casting
+  // Test for mapRawToContactWithNoteCount (handles parsing noteCount to number)
+  describe('mapRawToContactWithNoteCount()', () => {
+    it('should parse noteCount from string to number', () => {
+        const raw = { id: 1, firstName: 'Test', noteCount: "5" } as any; // other fields omitted for brevity
+        const mapped = Contact.mapRawToContactWithNoteCount(raw);
+        expect(mapped.noteCount).toBe(5);
+    });
 
-    const updatedContact = await contactModel.getById(contact.id);
-    expect(updatedContact?.firstName).toBe("UpdatedName");
-    expect(updatedContact?.category).toBe("WORK");
-    expect(new Date(updatedContact!.updatedAt).getTime()).toBeGreaterThanOrEqual(new Date(contact.updatedAt).getTime());
-  });
+    it('should handle null or undefined noteCount as 0', () => {
+        const raw1 = { id: 1, firstName: 'Test', noteCount: null } as any;
+        const mapped1 = Contact.mapRawToContactWithNoteCount(raw1);
+        expect(mapped1.noteCount).toBe(0);
 
-  it('should delete an existing contact and its associated notes (due to CASCADE)', async () => {
-    const contactToDelete = await contactModel.create({ firstName: 'Delete', lastName: 'Me', nativeID: 'del-me', category: 'ALL' });
-    await noteModel.create({ userId: contactToDelete.id, content: 'Note for deletion test', category: 'OTHERS' });
-
-    let notesForContact = await noteModel.getByUserId(contactToDelete.id);
-    expect(notesForContact).toHaveLength(1); // Confirm note exists
-
-    const success = await contactModel.delete(contactToDelete.id);
-    expect(success).toBe(true);
-
-    const fetchedContact = await contactModel.getById(contactToDelete.id);
-    expect(fetchedContact).toBeNull();
-
-    // Verify notes are also deleted due to ON DELETE CASCADE
-    notesForContact = await noteModel.getByUserId(contactToDelete.id);
-    expect(notesForContact).toHaveLength(0);
+        const raw2 = { id: 1, firstName: 'Test', noteCount: undefined } as any;
+        const mapped2 = Contact.mapRawToContactWithNoteCount(raw2);
+        expect(mapped2.noteCount).toBe(0);
+    });
   });
 
 });

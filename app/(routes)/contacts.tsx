@@ -21,12 +21,15 @@ export default function ContactsScreen() {
 
   const search = s.toLowerCase();
 
-  const displayContacts = contacts.filter(
-    (c: ContactType) => // Use ContactType here
-      c.category === currentTab &&
-      (c.firstName.toLowerCase().includes(search) ||
-        (c.lastName && c.lastName.toLowerCase().includes(search))) // Ensure lastName exists
-  );
+  const displayContacts = contacts.filter((c: ContactType) => {
+    const nameMatches =
+      c.firstName.toLowerCase().includes(search) ||
+      (c.lastName && c.lastName.toLowerCase().includes(search));
+    if (currentTab === "ALL") {
+      return nameMatches;
+    }
+    return c.category === currentTab && nameMatches;
+  });
 
   function onTabPress(tab: ContactCategoryType) {
     setCurrentTab(tab);
@@ -80,12 +83,13 @@ export default function ContactsScreen() {
             markedup={currentTab === "FAMILY"}
             onPress={() => onTabPress("FAMILY")}
           />
-          {/* <Button
-            label="Nouveau"
+          <Button
+            label="New Contact"
             style={styles.newBtn}
             fontSize={14}
             bgColor={Theme.colors.green}
-          /> */}
+            onPress={() => router.navigate("/new-contact")} // Or the path to your new contact screen/modal
+          />
         </View>
         {/* Component corpus */}
         <View style={styles.corpus}>
